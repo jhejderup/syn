@@ -1430,8 +1430,6 @@ pub fn visit_item_impl<'ast, V: Visit<'ast> + ?Sized>(_visitor: &mut V, _i: &'as
             tokens_helper(_visitor, &(& ( it ) . 2).0);
          };
     _visitor.visit_type(& * _i . self_ty);
-    tokens_helper(_visitor, &(& _i . brace_token).0);
-    for it in & _i . items { _visitor.visit_impl_item(it) };
 }
 # [ cfg ( feature = "full" ) ]
 pub fn visit_item_macro<'ast, V: Visit<'ast> + ?Sized>(_visitor: &mut V, _i: &'ast ItemMacro) {

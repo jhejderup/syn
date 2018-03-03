@@ -1431,8 +1431,6 @@ pub fn visit_item_impl_mut<V: VisitMut + ?Sized>(_visitor: &mut V, _i: &mut Item
             tokens_helper(_visitor, &mut (& mut ( it ) . 2).0);
          };
     _visitor.visit_type_mut(& mut * _i . self_ty);
-    tokens_helper(_visitor, &mut (& mut _i . brace_token).0);
-    for it in & mut _i . items { _visitor.visit_impl_item_mut(it) };
 }
 # [ cfg ( feature = "full" ) ]
 pub fn visit_item_macro_mut<V: VisitMut + ?Sized>(_visitor: &mut V, _i: &mut ItemMacro) {
