@@ -205,8 +205,6 @@ ast_enum_of_structs! {
             pub trait_: Option<(Option<Token![!]>, Path, Token![for])>,
             /// The Self type of the impl.
             pub self_ty: Box<Type>,
-            pub brace_token: token::Brace,
-            pub items: Vec<ImplItem>,
         }),
 
         /// A macro invocation, which includes `macro_rules!` definitions.
@@ -1366,7 +1364,6 @@ pub mod parsing {
         ) >>
         self_ty: syn!(Type) >>
         where_clause: option!(syn!(WhereClause)) >>
-        body: braces!(many0!(ImplItem::parse)) >>
         (ItemImpl {
             attrs: attrs,
             defaultness: defaultness,
@@ -1378,8 +1375,6 @@ pub mod parsing {
             },
             trait_: polarity_path,
             self_ty: Box::new(self_ty),
-            brace_token: body.0,
-            items: body.1,
         })
     ));
 
@@ -1712,9 +1707,6 @@ mod printing {
             }
             self.self_ty.to_tokens(tokens);
             self.generics.where_clause.to_tokens(tokens);
-            self.brace_token.surround(tokens, |tokens| {
-                tokens.append_all(&self.items);
-            });
         }
     }
 
