@@ -80,6 +80,7 @@ ast_struct! {
     /// feature.*
     pub struct PathSegment {
         pub ident: Ident,
+        pub item: Option<Item>,
         pub arguments: PathArguments,
     }
 }
@@ -91,6 +92,7 @@ where
     fn from(ident: T) -> Self {
         PathSegment {
             ident: ident.into(),
+            item: None,
             arguments: PathArguments::None,
         }
     }
@@ -314,10 +316,23 @@ pub mod parsing {
     impl Synom for PathSegment {
         named!(parse -> Self, alt!(
             do_parse!(
+                colon2: option!(punct!(::)) >>
+                lt: punct!(<) >>
+                args: syn!(Item) >>
+                gt: punct!(>) >>
+                (PathSegment {
+                    ident: Ident::from("yoo_i_am_item_bro"),
+                    item: Some(args),
+                    arguments: PathArguments::None,
+                })
+            )
+            |
+            do_parse!(
                 ident: syn!(Ident) >>
                 arguments: syn!(AngleBracketedGenericArguments) >>
                 (PathSegment {
                     ident: ident,
+                    item: None,
                     arguments: PathArguments::AngleBracketed(arguments),
                 })
             )
@@ -371,80 +386,8 @@ pub mod parsing {
         keyword!(crate) => { Into::into }
     ));
 
-    // named!(pub qpath -> (Option<QSelf>, Path), alt!(
-    //     map!(syn!(Path), |p| (None, p))
-    //     |
-    //     do_parse!(
-    //         lt: punct!(<) >>
-    //         this: syn!(Type) >>
-    //         path: option!(tuple!(keyword!(as), syn!(Path))) >>
-    //         gt: punct!(>) >>
-    //         colon2: punct!(::) >>
-    //         rest: call!(Punctuated::parse_separated_nonempty) >>
-    //         ({
-    //             let (pos, as_, path) = match path {
-    //                 Some((as_, mut path)) => {
-    //                     let pos = path.segments.len();
-    //                     path.segments.push_punct(colon2);
-    //                     path.segments.extend(rest.into_pairs());
-    //                     (pos, Some(as_), path)
-    //                 }
-    //                 None => {
-    //                     (0, None, Path {
-    //                         leading_colon: Some(colon2),
-    //                         segments: rest,
-    //                     })
-    //                 }
-    //             };
-    //             (Some(QSelf {
-    //                 lt_token: lt,
-    //                 ty: Box::new(this),
-    //                 position: pos,
-    //                 as_token: as_,
-    //                 gt_token: gt,
-    //             }), path)
-    //         })
-    //     )
-    //     |
-    //     map!(keyword!(self), |s| (None, s.into()))
-    // ));
-
-
-
     named!(pub qpath -> (Option<QSelf>, Path), alt!(
         map!(syn!(Path), |p| (None, p))
-       |
-        do_parse!(
-            lt: punct!(<) >>
-            this: syn!(Type) >>
-            path: option!(tuple!(keyword!(for), syn!(Path))) >>
-            gt: punct!(>) >>
-            colon2: punct!(::) >>
-            rest: call!(Punctuated::parse_separated_nonempty) >>
-            ({
-                let (pos, for_, path) = match path {
-                    Some((for_, mut path)) => {
-                        let pos = path.segments.len();
-                        path.segments.push_punct(colon2);
-                        path.segments.extend(rest.into_pairs());
-                        (pos, Some(for_), path)
-                    }
-                    None => {
-                        (0, None, Path {
-                            leading_colon: Some(colon2),
-                            segments: rest,
-                        })
-                    }
-                };
-                (Some(QSelf {
-                    lt_token: lt,
-                    ty: Box::new(this),
-                    position: pos,
-                    as_token: None,
-                    gt_token: gt,
-                }), path)
-            })
-        )
         |
         do_parse!(
             lt: punct!(<) >>
@@ -481,6 +424,7 @@ pub mod parsing {
         map!(keyword!(self), |s| (None, s.into()))
     ));
 
+
     named!(pub ty_no_eq_after -> Type, do_parse!(
         ty: syn!(Type) >>
         not!(punct!(=)) >>
@@ -504,6 +448,9 @@ mod printing {
         fn to_tokens(&self, tokens: &mut Tokens) {
             self.ident.to_tokens(tokens);
             self.arguments.to_tokens(tokens);
+            if let Some(ref item) = self.item {
+                item.to_tokens(tokens);
+            }
         }
     }
 
