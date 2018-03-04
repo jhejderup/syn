@@ -1865,6 +1865,9 @@ pub fn visit_path_arguments<'ast, V: Visit<'ast> + ?Sized>(_visitor: &mut V, _i:
 pub fn visit_path_segment<'ast, V: Visit<'ast> + ?Sized>(_visitor: &mut V, _i: &'ast PathSegment) {
     _visitor.visit_ident(& _i . ident);
     _visitor.visit_path_arguments(& _i . arguments);
+    if let Some(ref item) = _i.item {
+        _visitor.visit_item(item);
+    }
 }
 # [ cfg ( any ( feature = "full" , feature = "derive" ) ) ]
 pub fn visit_predicate_eq<'ast, V: Visit<'ast> + ?Sized>(_visitor: &mut V, _i: &'ast PredicateEq) {
