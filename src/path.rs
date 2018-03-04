@@ -6,8 +6,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+
 use punctuated::Punctuated;
 use super::*;
+
+
 
 ast_struct! {
     /// A path at which a named item is exported: `std::collections::HashMap`.
@@ -368,8 +371,80 @@ pub mod parsing {
         keyword!(crate) => { Into::into }
     ));
 
+    // named!(pub qpath -> (Option<QSelf>, Path), alt!(
+    //     map!(syn!(Path), |p| (None, p))
+    //     |
+    //     do_parse!(
+    //         lt: punct!(<) >>
+    //         this: syn!(Type) >>
+    //         path: option!(tuple!(keyword!(as), syn!(Path))) >>
+    //         gt: punct!(>) >>
+    //         colon2: punct!(::) >>
+    //         rest: call!(Punctuated::parse_separated_nonempty) >>
+    //         ({
+    //             let (pos, as_, path) = match path {
+    //                 Some((as_, mut path)) => {
+    //                     let pos = path.segments.len();
+    //                     path.segments.push_punct(colon2);
+    //                     path.segments.extend(rest.into_pairs());
+    //                     (pos, Some(as_), path)
+    //                 }
+    //                 None => {
+    //                     (0, None, Path {
+    //                         leading_colon: Some(colon2),
+    //                         segments: rest,
+    //                     })
+    //                 }
+    //             };
+    //             (Some(QSelf {
+    //                 lt_token: lt,
+    //                 ty: Box::new(this),
+    //                 position: pos,
+    //                 as_token: as_,
+    //                 gt_token: gt,
+    //             }), path)
+    //         })
+    //     )
+    //     |
+    //     map!(keyword!(self), |s| (None, s.into()))
+    // ));
+
+
+
     named!(pub qpath -> (Option<QSelf>, Path), alt!(
         map!(syn!(Path), |p| (None, p))
+       |
+        do_parse!(
+            lt: punct!(<) >>
+            this: syn!(Type) >>
+            path: option!(tuple!(keyword!(for), syn!(Path))) >>
+            gt: punct!(>) >>
+            colon2: punct!(::) >>
+            rest: call!(Punctuated::parse_separated_nonempty) >>
+            ({
+                let (pos, for_, path) = match path {
+                    Some((for_, mut path)) => {
+                        let pos = path.segments.len();
+                        path.segments.push_punct(colon2);
+                        path.segments.extend(rest.into_pairs());
+                        (pos, Some(for_), path)
+                    }
+                    None => {
+                        (0, None, Path {
+                            leading_colon: Some(colon2),
+                            segments: rest,
+                        })
+                    }
+                };
+                (Some(QSelf {
+                    lt_token: lt,
+                    ty: Box::new(this),
+                    position: pos,
+                    as_token: None,
+                    gt_token: gt,
+                }), path)
+            })
+        )
         |
         do_parse!(
             lt: punct!(<) >>
@@ -453,21 +528,25 @@ mod printing {
                 GenericArgument::Lifetime(ref lt) => lt.to_tokens(tokens),
                 GenericArgument::Type(ref ty) => ty.to_tokens(tokens),
                 GenericArgument::Binding(ref tb) => tb.to_tokens(tokens),
-                GenericArgument::Const(ref e) => match *e {
-                    Expr::Lit(_) => e.to_tokens(tokens),
+                GenericArgument::Const(ref e) => {
+                    match *e {
+                        Expr::Lit(_) => e.to_tokens(tokens),
 
-                    // NOTE: We should probably support parsing blocks with only
-                    // expressions in them without the full feature for const
-                    // generics.
-                    #[cfg(feature = "full")]
-                    Expr::Block(_) => e.to_tokens(tokens),
+                        // NOTE: We should probably support parsing blocks with only
+                        // expressions in them without the full feature for const
+                        // generics.
+                        #[cfg(feature = "full")]
+                        Expr::Block(_) => e.to_tokens(tokens),
 
-                    // ERROR CORRECTION: Add braces to make sure that the
-                    // generated code is valid.
-                    _ => token::Brace::default().surround(tokens, |tokens| {
-                        e.to_tokens(tokens);
-                    }),
-                },
+                        // ERROR CORRECTION: Add braces to make sure that the
+                        // generated code is valid.
+                        _ => {
+                            token::Brace::default().surround(tokens, |tokens| {
+                                e.to_tokens(tokens);
+                            })
+                        }
+                    }
+                }
             }
         }
     }
@@ -491,14 +570,16 @@ mod printing {
             }
             for param in self.args.pairs() {
                 match **param.value() {
-                    GenericArgument::Type(_) | GenericArgument::Const(_) => {
+                    GenericArgument::Type(_) |
+                    GenericArgument::Const(_) => {
                         if !trailing_or_empty {
                             <Token![,]>::default().to_tokens(tokens);
                         }
                         param.to_tokens(tokens);
                         trailing_or_empty = param.punct().is_some();
                     }
-                    GenericArgument::Lifetime(_) | GenericArgument::Binding(_) => {}
+                    GenericArgument::Lifetime(_) |
+                    GenericArgument::Binding(_) => {}
                 }
             }
             for param in self.args.pairs() {
