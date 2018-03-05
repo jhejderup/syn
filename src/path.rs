@@ -10,8 +10,6 @@
 use punctuated::Punctuated;
 use super::*;
 
-
-
 ast_struct! {
     /// A path at which a named item is exported: `std::collections::HashMap`.
     ///
@@ -79,9 +77,14 @@ ast_struct! {
     /// *This type is available if Syn is built with the `"derive"` or `"full"`
     /// feature.*
     pub struct PathSegment {
+        pub inner_brace: Option<token::Brace>,
+        pub colon2_token: Option<Token![::]>,
+        pub lt_token: Option<Token![<]>,
         pub ident: Ident,
         pub item: Option<Item>,
         pub arguments: PathArguments,
+        pub gt_token: Option<Token![>]>,
+        pub outer_brace: Option<token::Brace>,
     }
 }
 
@@ -91,9 +94,14 @@ where
 {
     fn from(ident: T) -> Self {
         PathSegment {
+            inner_brace: None,
+            colon2_token: None,
+            lt_token: None,
             ident: ident.into(),
             item: None,
             arguments: PathArguments::None,
+            gt_token: None,
+            outer_brace: None,
         }
     }
 }
@@ -239,7 +247,7 @@ pub mod parsing {
             cond_reduce!(segments.first().map_or(true, |seg| seg.value().ident != "dyn")) >>
             (Path {
                 leading_colon: colon,
-                segments: segments,
+                segments: segments, 
             })
         ));
 
@@ -319,9 +327,14 @@ pub mod parsing {
                 colon2: option!(punct!(::)) >>
                 ident: braces!(braces!(syn!(Ident))) >>
                 (PathSegment {
+                    inner_brace: Some(ident.0),
+                    colon2_token: colon2,
+                    lt_token: None,
                     ident: (ident.1).1,
                     item: None,
                     arguments: PathArguments::None,
+                    gt_token: None,
+                    outer_brace: Some((ident.1).0)
                 })
             )
             |
@@ -331,9 +344,14 @@ pub mod parsing {
                 args: syn!(Item) >>
                 gt: punct!(>) >>
                 (PathSegment {
-                    ident: Ident::from("yoo_i_am_item_bro"),
+                    inner_brace: None,
+                    colon2_token: colon2,
+                    lt_token: Some(lt),
+                    ident: Ident::from("dont_use_this"),
                     item: Some(args),
                     arguments: PathArguments::None,
+                    gt_token: Some(gt),
+                    outer_brace: None
                 })
             )
             |
@@ -341,9 +359,14 @@ pub mod parsing {
                 ident: syn!(Ident) >>
                 arguments: syn!(AngleBracketedGenericArguments) >>
                 (PathSegment {
+                    inner_brace: None,
+                    colon2_token: None,
+                    lt_token: None,
                     ident: ident,
                     item: None,
                     arguments: PathArguments::AngleBracketed(arguments),
+                    gt_token: None,
+                    outer_brace: None,
                 })
             )
             |
@@ -456,11 +479,24 @@ mod printing {
 
     impl ToTokens for PathSegment {
         fn to_tokens(&self, tokens: &mut Tokens) {
-            self.ident.to_tokens(tokens);
-            self.arguments.to_tokens(tokens);
+            self.colon2_token.to_tokens(tokens);
+            self.lt_token.to_tokens(tokens);
             if let Some(ref item) = self.item {
                 item.to_tokens(tokens);
+            } else {
+                if self.inner_brace.is_some() && self.outer_brace.is_some() {
+                    self.outer_brace.unwrap().surround(tokens, |outer_tokens| {
+                        self.inner_brace.unwrap().surround(outer_tokens, |inner_tokens| {
+                            self.ident.to_tokens(inner_tokens);
+                            self.arguments.to_tokens(inner_tokens);
+                        });
+                    });
+                } else {
+                    self.ident.to_tokens(tokens);
+                    self.arguments.to_tokens(tokens);
+                }
             }
+            self.gt_token.to_tokens(tokens);
         }
     }
 
