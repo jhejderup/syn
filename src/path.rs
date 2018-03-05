@@ -317,6 +317,16 @@ pub mod parsing {
         named!(parse -> Self, alt!(
             do_parse!(
                 colon2: option!(punct!(::)) >>
+                ident: braces!(braces!(syn!(Ident))) >>
+                (PathSegment {
+                    ident: (ident.1).1,
+                    item: None,
+                    arguments: PathArguments::None,
+                })
+            )
+            |
+            do_parse!(
+                colon2: option!(punct!(::)) >>
                 lt: punct!(<) >>
                 args: syn!(Item) >>
                 gt: punct!(>) >>
